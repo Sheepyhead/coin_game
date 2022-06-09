@@ -1,5 +1,5 @@
 [package]
-name = "bevy_template"
+name = "coin_game"
 version = "0.1.0"
 edition = "2021"
 
@@ -8,6 +8,9 @@ edition = "2021"
 [dependencies]
 bevy = "0.7.0"
 bevy-inspector-egui = "0.11.0"
+bevy_rapier3d = "0.14.1"
+bevy_tweening = "0.4.0"
+bevy_mod_picking = "0.7.0"
 
 [profile.dev]
 opt-level = 1

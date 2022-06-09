@@ -15,7 +15,21 @@
     clippy::enum_glob_use
 )]
 
-use bevy::{prelude::*, window::PresentMode};
+use std::time::Duration;
+
+use bevy::{
+    input::{mouse::MouseButtonInput, ElementState},
+    prelude::*,
+    window::PresentMode,
+};
+use bevy_mod_picking::{DefaultPickingPlugins, PickableBundle, PickingCameraBundle};
+use bevy_rapier3d::{
+    plugin::{NoUserData, RapierPhysicsPlugin},
+    prelude::*,
+};
+use bevy_tweening::{
+    lens::TransformPositionLens, Animator, EaseFunction, Tween, TweeningPlugin, TweeningType,
+};
 use debug::Debug;
 
 mod debug;
@@ -30,24 +44,108 @@ fn main() {
         .insert_resource(WindowDescriptor {
             width: HEIGHT * RESOLUTION,
             height: HEIGHT,
-            title: "Bevy Template".to_string(),
+            title: "Coin game".to_string(),
             present_mode: PresentMode::Fifo,
             resizable: false,
             ..Default::default()
         })
         // External plugins
         .add_plugins(DefaultPlugins)
+        .add_plugin(RapierPhysicsPlugin::<NoUserData>::default())
+        .add_plugin(RapierDebugRenderPlugin::default())
+        .add_plugin(TweeningPlugin)
+        .add_plugins(DefaultPickingPlugins)
         // Internal plugins
         .add_plugin(Debug)
         .add_startup_system(spawn_camera)
+        .add_startup_system(spawn_board)
+        .add_system(spawn_coin)
         .run();
 }
 
 fn spawn_camera(mut commands: Commands) {
     let mut camera = PerspectiveCameraBundle::new_3d();
 
-    camera.transform.translation = Vec3::splat(0.0);
+    camera.transform.translation = Vec3::new(0.0, 10.0, 10.0);
     camera.transform.look_at(Vec3::ZERO, Vec3::Y);
 
-    commands.spawn_bundle(camera);
+    commands
+        .spawn_bundle(camera)
+        .insert_bundle(PickingCameraBundle::default());
+}
+
+#[derive(Component)]
+struct Pusher;
+
+fn spawn_board(mut commands: Commands) {
+    commands
+        .spawn_bundle((Collider::cuboid(10.0, 1.0, 50.0), RigidBody::Fixed))
+        .insert_bundle(TransformBundle::from(Transform::from_xyz(0.0, -1.0, 0.0)));
+    commands
+        .spawn_bundle((Collider::cuboid(1.0, 10.0, 25.0), RigidBody::Fixed))
+        .insert_bundle(TransformBundle::from(Transform::from_xyz(-5.0, 0.0, 0.0)));
+    commands
+        .spawn_bundle((Collider::cuboid(1.0, 10.0, 25.0), RigidBody::Fixed))
+        .insert_bundle(TransformBundle::from(Transform::from_xyz(5.0, 0.0, 0.0)));
+    let transform = Transform::from_xyz(0.0, 0.0, -13.);
+    commands
+        .spawn_bundle((
+            Collider::cuboid(10.0, 1.0, 10.0),
+            RigidBody::KinematicPositionBased,
+            Pusher,
+            Name::new("Pusher"),
+            Animator::new(Tween::new(
+                EaseFunction::SineInOut,
+                TweeningType::PingPong,
+                Duration::from_secs(4),
+                TransformPositionLens {
+                    start: transform.translation,
+                    end: Vec3::new(0.0, 0.0, -23.),
+                },
+            )),
+        ))
+        .insert_bundle(TransformBundle::from(transform))
+        .insert_bundle(PickableBundle::default());
+
+    for x in -4..4 {
+        commands
+            .spawn_bundle((Collider::cylinder(0.1, 0.5), RigidBody::Dynamic))
+            .insert_bundle(TransformBundle::from(Transform::from_xyz(
+                1.01 * x as f32 + 0.5,
+                0.1,
+                0.0,
+            )));
+    }
+    for x in -3..4 {
+        commands
+            .spawn_bundle((Collider::cylinder(0.1, 0.5), RigidBody::Dynamic))
+            .insert_bundle(TransformBundle::from(Transform::from_xyz(
+                1.01 * x as f32,
+                0.1,
+                -1.0,
+            )));
+    }
+    for x in -4..4 {
+        commands
+            .spawn_bundle((Collider::cylinder(0.1, 0.5), RigidBody::Dynamic))
+            .insert_bundle(TransformBundle::from(Transform::from_xyz(
+                1.01 * x as f32 + 0.5,
+                0.1,
+                -2.0,
+            )));
+    }
+}
+
+fn spawn_coin(mut commands: Commands, mut events: EventReader<MouseButtonInput>) {
+    for event in events.iter() {
+        if let MouseButtonInput {
+            button: MouseButton::Left,
+            state: ElementState::Pressed,
+        } = event
+        {
+            commands
+                .spawn_bundle((Collider::cylinder(0.1, 0.5), RigidBody::Dynamic))
+                .insert_bundle(TransformBundle::from(Transform::from_xyz(0.0, 2.0, -5.0)));
+        }
+    }
 }
