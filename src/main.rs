@@ -49,17 +49,21 @@ fn main() {
             resizable: false,
             ..Default::default()
         })
+        .insert_resource(AmbientLight {
+            color: Color::WHITE,
+            brightness: 1.0,
+        })
         // External plugins
         .add_plugins(DefaultPlugins)
         .add_plugin(RapierPhysicsPlugin::<NoUserData>::default())
-        .add_plugin(RapierDebugRenderPlugin::default())
+        // .add_plugin(RapierDebugRenderPlugin::default())
         .add_plugin(TweeningPlugin)
         .add_plugins(DefaultPickingPlugins)
         // Internal plugins
         .add_plugin(Debug)
         .add_startup_system(spawn_camera)
         .add_startup_system(spawn_board)
-        .add_system(spawn_coin)
+        .add_system(spawn_coins)
         .run();
 }
 
@@ -77,16 +81,36 @@ fn spawn_camera(mut commands: Commands) {
 #[derive(Component)]
 struct Pusher;
 
-fn spawn_board(mut commands: Commands) {
+fn spawn_board(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    ass: Res<AssetServer>,
+) {
     commands
-        .spawn_bundle((Collider::cuboid(10.0, 1.0, 50.0), RigidBody::Fixed))
-        .insert_bundle(TransformBundle::from(Transform::from_xyz(0.0, -1.0, 0.0)));
+        .spawn_bundle((Collider::cuboid(10.0, 1.0, 5.0), RigidBody::Fixed))
+        .insert_bundle(PbrBundle {
+            mesh: meshes.add(shape::Box::new(20.0, 2.0, 10.0).into()),
+            material: materials.add(Color::RED.into()),
+            transform: Transform::from_xyz(0.0, -1.0, 0.0),
+            ..default()
+        });
     commands
         .spawn_bundle((Collider::cuboid(1.0, 10.0, 25.0), RigidBody::Fixed))
-        .insert_bundle(TransformBundle::from(Transform::from_xyz(-5.0, 0.0, 0.0)));
+        .insert_bundle(PbrBundle {
+            mesh: meshes.add(shape::Box::new(2.0, 10.0, 50.0).into()),
+            material: materials.add(Color::GOLD.into()),
+            transform: Transform::from_xyz(-5.0, 0.0, 0.0),
+            ..default()
+        });
     commands
         .spawn_bundle((Collider::cuboid(1.0, 10.0, 25.0), RigidBody::Fixed))
-        .insert_bundle(TransformBundle::from(Transform::from_xyz(5.0, 0.0, 0.0)));
+        .insert_bundle(PbrBundle {
+            mesh: meshes.add(shape::Box::new(2.0, 10.0, 50.0).into()),
+            material: materials.add(Color::GOLD.into()),
+            transform: Transform::from_xyz(5.0, 0.0, 0.0),
+            ..default()
+        });
     let transform = Transform::from_xyz(0.0, 0.0, -13.);
     commands
         .spawn_bundle((
@@ -97,55 +121,63 @@ fn spawn_board(mut commands: Commands) {
             Animator::new(Tween::new(
                 EaseFunction::SineInOut,
                 TweeningType::PingPong,
-                Duration::from_secs(4),
+                Duration::from_secs(3),
                 TransformPositionLens {
                     start: transform.translation,
-                    end: Vec3::new(0.0, 0.0, -23.),
+                    end: Vec3::new(0.0, 0.0, -15.),
                 },
             )),
         ))
-        .insert_bundle(TransformBundle::from(transform))
+        .insert_bundle(PbrBundle {
+            mesh: meshes.add(shape::Box::new(20.0, 2.0, 20.0).into()),
+            material: materials.add(Color::GOLD.into()),
+            transform,
+            ..default()
+        })
         .insert_bundle(PickableBundle::default());
 
     for x in -4..4 {
-        commands
-            .spawn_bundle((Collider::cylinder(0.1, 0.5), RigidBody::Dynamic))
-            .insert_bundle(TransformBundle::from(Transform::from_xyz(
-                1.01 * x as f32 + 0.5,
-                0.1,
-                0.0,
-            )));
+        spawn_coin(
+            &mut commands,
+            Vec3::new(1.01 * x as f32 + 0.5, 0.05, 0.0),
+            &ass,
+        );
     }
     for x in -3..4 {
-        commands
-            .spawn_bundle((Collider::cylinder(0.1, 0.5), RigidBody::Dynamic))
-            .insert_bundle(TransformBundle::from(Transform::from_xyz(
-                1.01 * x as f32,
-                0.1,
-                -1.0,
-            )));
+        spawn_coin(&mut commands, Vec3::new(1.01 * x as f32, 0.05, -1.0), &ass);
     }
     for x in -4..4 {
-        commands
-            .spawn_bundle((Collider::cylinder(0.1, 0.5), RigidBody::Dynamic))
-            .insert_bundle(TransformBundle::from(Transform::from_xyz(
-                1.01 * x as f32 + 0.5,
-                0.1,
-                -2.0,
-            )));
+        spawn_coin(
+            &mut commands,
+            Vec3::new(1.01 * x as f32 + 0.5, 0.05, -2.0),
+            &ass,
+        );
     }
 }
 
-fn spawn_coin(mut commands: Commands, mut events: EventReader<MouseButtonInput>) {
+fn spawn_coins(
+    mut commands: Commands,
+    mut events: EventReader<MouseButtonInput>,
+    ass: Res<AssetServer>,
+) {
     for event in events.iter() {
         if let MouseButtonInput {
             button: MouseButton::Left,
             state: ElementState::Pressed,
         } = event
         {
-            commands
-                .spawn_bundle((Collider::cylinder(0.1, 0.5), RigidBody::Dynamic))
-                .insert_bundle(TransformBundle::from(Transform::from_xyz(0.0, 2.0, -5.0)));
+            spawn_coin(&mut commands, Vec3::new(0.0, 2.0, -4.0), &ass);
         }
     }
+}
+
+fn spawn_coin(commands: &mut Commands, position: Vec3, ass: &Res<AssetServer>) {
+    commands
+        .spawn_bundle((Collider::cylinder(0.05, 0.5), RigidBody::Dynamic))
+        .insert_bundle(PbrBundle {
+            mesh: ass.load("coin.glb#Mesh0/Primitive0"),
+            material: ass.load("coin.glb#Material0"),
+            transform: Transform::from_translation(position),
+            ..default()
+        });
 }
